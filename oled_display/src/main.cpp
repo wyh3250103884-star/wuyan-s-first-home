@@ -1,0 +1,94 @@
+#include <Arduino.h>
+#include <U8g2lib.h>
+
+// 4针脚 IIC OLED → ESP32 接线：
+// GND → GND    VCC → 3.3V    SCL → GPIO22    SDA → GPIO21
+// 硬件 I2C，自动使用 ESP32 默认 I2C 引脚
+
+U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0);
+
+// ---- 笑脸图标 32x32 XBM ----
+#define smile_width  32
+#define smile_height 32
+static const unsigned char smile_bits[] U8X8_PROGMEM = {
+  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xC0,0x03,0x00,0x00,0x30,0x0C,0x00,
+  0x00,0x08,0x10,0x00,0x00,0x04,0x20,0x00,0x00,0x02,0x40,0x00,0x00,0x02,0x40,0x00,
+  0x00,0x01,0x80,0x00,0x80,0x00,0x00,0x01,0x80,0x00,0x00,0x01,0x80,0x20,0x04,0x01,
+  0x80,0x20,0x04,0x01,0x80,0x00,0x00,0x01,0x80,0x00,0x00,0x01,0x00,0x01,0x80,0x00,
+  0x00,0x02,0x40,0x00,0x00,0x02,0x40,0x00,0x00,0x04,0x20,0x00,0x00,0x08,0x10,0x00,
+  0x00,0x10,0x08,0x00,0x00,0xE0,0x07,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+};
+
+// ---- 动画参数 ----
+int ballX = 0, ballY = 0;       // 笑脸当前位置
+int dx = 2, dy = 1;             // 移动速度（像素/帧）
+
+void setup() {
+  u8g2.begin();
+  u8g2.enableUTF8Print();
+}
+
+void loop() {
+  // ===== 第 1 页：显示文字 =====
+  u8g2.clearBuffer();
+
+  u8g2.setFont(u8g2_font_ncenB08_tr);
+  u8g2.setCursor(0, 12);
+  u8g2.print("Hello, X-Lab!");
+
+  u8g2.setFont(u8g2_font_wqy12_t_gb2312);
+  u8g2.setCursor(0, 35);
+  u8g2.print("暴打无烟子呜呜");
+
+  u8g2.setCursor(0, 55);
+  u8g2.print("OLED 显示成功");
+
+  u8g2.sendBuffer();
+  delay(2000);
+
+  // ===== 第 2 页：静态图片 =====
+  u8g2.clearBuffer();
+
+  u8g2.drawXBMP(0, 0, smile_width, smile_height, smile_bits);
+
+  u8g2.setFont(u8g2_font_wqy12_t_gb2312);
+  u8g2.setCursor(40, 20);
+  u8g2.print("图片显示");
+
+  u8g2.setFont(u8g2_font_ncenB08_tr);
+  u8g2.setCursor(40, 40);
+  u8g2.print("32x32 XBM");
+
+  u8g2.sendBuffer();
+  delay(2000);
+
+  // ===== 第 3 页：逐帧动画（模拟"视频"） =====
+  for (int frame = 0; frame < 200; frame++) {
+    // 碰撞检测：碰到屏幕边缘就反弹
+    if (ballX <= 0 || ballX >= 128 - smile_width)  dx = -dx;
+    if (ballY <= 0 || ballY >= 64 - smile_height)  dy = -dy;
+
+    ballX += dx;
+    ballY += dy;
+
+    u8g2.clearBuffer();
+
+    // 画移动的笑脸
+    u8g2.drawXBMP(ballX, ballY, smile_width, smile_height, smile_bits);
+
+    // 加上帧号，看起来更像视频播放器
+    u8g2.setFont(u8g2_font_ncenB08_tr);
+    u8g2.setCursor(0, 10);
+    u8g2.print("FPS:~");
+    u8g2.print(1000 / 30);  // ~33 FPS 理论值，实际受 I2C 限制约 5-10fps
+
+    u8g2.sendBuffer();
+    delay(30);  // 帧延迟
+  }
+
+  // 重置球的位置
+  ballX = 0;
+  ballY = 0;
+}
